@@ -67,10 +67,10 @@ class TinyMCE(forms.Textarea):
         if mce_config['mode'] == 'exact':
             mce_config['elements'] = final_attrs['id']
         mce_config['strict_loading_mode'] = 1
-        
+
         # Fix for js functions
         js_functions = {}
-        for k in ('paste_preprocess','paste_postprocess'):
+        for k in ('paste_preprocess','paste_postprocess','setup'):
             if k in mce_config:
                js_functions[k] = mce_config[k]
                del mce_config[k]
@@ -78,7 +78,7 @@ class TinyMCE(forms.Textarea):
         for k in js_functions:
             index = mce_json.rfind('}')
             mce_json = mce_json[:index]+', '+k+':'+js_functions[k].strip()+mce_json[index:]
-            
+
         html = [u'<textarea%s>%s</textarea>' % (flatatt(final_attrs), escape(value))]
         if tinymce.settings.USE_COMPRESSOR:
             compressor_config = {
@@ -90,7 +90,38 @@ class TinyMCE(forms.Textarea):
             }
             compressor_json = simplejson.dumps(compressor_config)
             html.append(u'<script type="text/javascript">tinyMCE_GZ.init(%s)</script>' % compressor_json)
-        html.append(u'<script type="text/javascript">tinyMCE.init(%s)</script>' % mce_json)
+            # TODO: put this into external file
+        html.append(u"""
+                <script type="text/javascript">
+                    var $switcher = $('<ul class="tinymce-switcher">\
+                        <li class="active"><a href="#" class="btn-visual">Visual Editor</a></li>\
+                        <li><a href="#" class="btn-html">HTML</a></li>\
+                       </ul>').insertBefore($('#%s'));
+                    $switcher.find('.btn-html').click(function () {
+                            var $t = $(this),
+                                $p = $t.parent();
+                            if ($p.is('.active')) {
+                                return false;
+                            }
+                            tinyMCE.execCommand('mceRemoveControl', false, '%s');
+                            $p.parent().find('.active').removeClass('active');
+                            $p.addClass('active');
+                            return false;
+                        });
+                    $switcher.find('.btn-visual').click(function () {
+                            var $t = $(this),
+                                $p = $t.parent();
+                            if ($p.is('.active')) {
+                                return false;
+                            }
+                            tinyMCE.execCommand('mceAddControl', false, '%s');
+                            $p.parent().find('.active').removeClass('active');
+                            $p.addClass('active');
+                            return false;
+                        })
+                    tinyMCE.init(%s);
+                </script>
+            """ % (final_attrs['id'], final_attrs['id'], final_attrs['id'], mce_json))
 
         return mark_safe(u'\n'.join(html))
 
